@@ -1,3 +1,8 @@
+"""
+文件管理模块 - 简化版
+只保留必要的文件管理功能
+"""
+
 import os
 import random
 import string
@@ -29,57 +34,6 @@ def generate_filename(original_name: str) -> str:
     # 返回新文件名
     return f"{base_name}_{random_suffix}.docx"
 
-def cleanup_session_dir(session_dir: Path) -> None:
-    """
-    清理单个会话目录
-    
-    Args:
-        session_dir: 会话目录路径
-    """
-    if not session_dir.exists():
-        logger.warning(f"会话目录不存在: {session_dir}")
-        return
-    
-    try:
-        # 不再需要关闭日志文件，因为日志文件现在存储在单独的日志目录中
-        
-        # 使用忽略错误的方式删除目录
-        try:
-            shutil.rmtree(session_dir, ignore_errors=True)
-            logger.info(f"已删除会话目录: {session_dir}")
-        except Exception as e:
-            logger.warning(f"删除会话目录时出错: {str(e)}")
-            
-            # 如果删除失败，尝试逐个删除文件
-            try:
-                for root, dirs, files in os.walk(session_dir, topdown=False):
-                    for file in files:
-                        file_path = Path(root) / file
-                        try:
-                            file_path.unlink()
-                            logger.info(f"已删除文件: {file_path}")
-                        except Exception as file_e:
-                            logger.warning(f"删除文件时出错: {file_path}, {str(file_e)}")
-                    
-                    for dir in dirs:
-                        dir_path = Path(root) / dir
-                        try:
-                            dir_path.rmdir()
-                            logger.info(f"已删除目录: {dir_path}")
-                        except Exception as dir_e:
-                            logger.warning(f"删除目录时出错: {dir_path}, {str(dir_e)}")
-                
-                # 最后尝试删除根目录
-                try:
-                    session_dir.rmdir()
-                    logger.info(f"已删除根目录: {session_dir}")
-                except Exception as root_e:
-                    logger.warning(f"删除根目录时出错: {session_dir}, {str(root_e)}")
-            except Exception as walk_e:
-                logger.error(f"遍历删除文件时出错: {str(walk_e)}")
-    except Exception as e:
-        logger.error(f"清理会话目录时出错: {str(e)}")
-
 def cleanup_old_files(temp_dir: Path, max_age_hours: int = 24) -> None:
     """
     清理旧的临时文件
@@ -109,8 +63,11 @@ def cleanup_old_files(temp_dir: Path, max_age_hours: int = 24) -> None:
             # 如果目录超过最大保留时间，则删除
             if age_seconds > max_age_seconds:
                 logger.info(f"删除旧会话目录: {session_dir}")
-                cleanup_session_dir(session_dir)
+                try:
+                    shutil.rmtree(session_dir, ignore_errors=True)
+                except Exception as e:
+                    logger.error(f"删除目录 {session_dir} 时出错: {str(e)}")
         except Exception as e:
-            logger.error(f"清理目录 {session_dir} 时出错: {str(e)}")
+            logger.error(f"处理目录 {session_dir} 时出错: {str(e)}")
     
     logger.info("临时文件清理完成") 
