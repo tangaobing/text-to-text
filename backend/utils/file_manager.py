@@ -15,6 +15,9 @@ import shutil
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# 最大文件大小 (100MB)
+MAX_FILE_SIZE = 100 * 1024 * 1024
+
 def generate_filename(original_name: str) -> str:
     """
     生成唯一的输出文件名

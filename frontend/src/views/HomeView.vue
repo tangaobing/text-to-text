@@ -344,15 +344,15 @@ const acceptFileTypes = computed(() => {
 const uploadTip = computed(() => {
   switch (conversionType.value) {
     case 'pdf-to-word':
-      return '支持上传PDF文件，最大20MB'
+      return '支持上传PDF文件，最大100MB'
     case 'markdown-to-word':
-      return '支持上传Markdown文件，最大20MB'
+      return '支持上传Markdown文件，最大100MB'
     case 'word-to-pdf':
-      return '支持上传Word文档，最大20MB'
+      return '支持上传Word文档，最大100MB'
     case 'pdf-to-markdown':
-      return '支持上传PDF文件，最大20MB'
+      return '支持上传PDF文件，最大100MB'
     default:
-      return '支持上传PDF文件，最大20MB'
+      return '支持上传PDF文件，最大100MB'
   }
 })
 
@@ -491,8 +491,9 @@ const removeFile = (e) => {
 
 // 文件上传前验证
 const beforeUpload = (file) => {
+  // 检查文件类型和大小
   let isValidType = false
-  const maxSize = 20 * 1024 * 1024 // 统一设置为20MB
+  const maxSize = 100 * 1024 * 1024 // 100MB
   
   switch (conversionType.value) {
     case 'pdf-to-word':
@@ -520,7 +521,7 @@ const beforeUpload = (file) => {
   }
   
   if (!isLtMaxSize) {
-    ElMessage.error('文件大小不能超过20MB!')
+    ElMessage.error('文件大小不能超过100MB!')
     return false
   }
   

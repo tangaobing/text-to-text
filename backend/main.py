@@ -46,7 +46,7 @@ logger.info(f"日志目录路径: {LOGS_DIR.absolute()}")
 conversion_tasks: Dict[str, Dict] = {}
 
 # 配置
-MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 
 # 定期清理临时文件
 @app.on_event("startup")
@@ -238,6 +238,24 @@ async def download_file(task_id: str, background_tasks: BackgroundTasks):
         filename=task_info["output_filename"],
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
+
+@app.get("/style-config")
+async def get_style_config():
+    """获取默认样式配置"""
+    default_config = {
+        "font_mappings": {
+            "default": "微软雅黑",
+            "serif": "宋体",
+            "sans-serif": "微软雅黑",
+            "monospace": "Consolas"
+        },
+        "preserve_images": True,
+        "preserve_tables": True,
+        "preserve_hyperlinks": True,
+        "code_highlight": True,
+        "math_support": True
+    }
+    return default_config
 
 @app.get("/")
 async def root():
