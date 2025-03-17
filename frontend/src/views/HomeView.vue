@@ -587,17 +587,30 @@ const uploadFile = async () => {
 const startPollingTaskStatus = () => {
   if (progressInterval.value) {
     clearInterval(progressInterval.value)
+    progressInterval.value = null
   }
   
-  progressInterval.value = setInterval(async () => {
+  // 初始轮询间隔为1秒
+  let pollingInterval = 1000
+  // 记录上一次的状态
+  let lastStatus = ''
+  // 记录连续相同状态的次数
+  let sameStatusCount = 0
+  // 标记是否已经显示过成功消息
+  let hasShownSuccessMessage = false
+  
+  const pollStatus = async () => {
     try {
       // 如果任务ID为空或文件已清理，停止轮询
       if (!taskId.value || isFileCleanedUp.value) {
-        clearInterval(progressInterval.value)
+        if (progressInterval.value) {
+          clearInterval(progressInterval.value)
+          progressInterval.value = null
+        }
         return
       }
       
-      console.log(`获取任务状态: ${taskId.value}`)
+      console.log(`获取任务状态: ${taskId.value}, 当前轮询间隔: ${pollingInterval}ms`)
       const response = await axios.get(`${apiBaseUrl}/status/${taskId.value}`)
       const taskStatus = response.data
       
@@ -612,14 +625,51 @@ const startPollingTaskStatus = () => {
       if (taskStatus.status === 'completed') {
         isCompleted.value = true
         isUploading.value = false
-        clearInterval(progressInterval.value)
-        ElMessage.success('文件转换成功，请点击下载按钮获取文件')
+        
+        // 只有当状态从非completed变为completed时，且尚未显示过成功消息时才显示
+        if (lastStatus !== 'completed' && !hasShownSuccessMessage) {
+          ElMessage.success('文件转换成功，请点击下载按钮获取文件')
+          hasShownSuccessMessage = true
+        }
+        
+        // 完成后停止轮询
+        if (progressInterval.value) {
+          clearInterval(progressInterval.value)
+          progressInterval.value = null
+        }
       } else if (taskStatus.status === 'failed') {
         hasError.value = true
         errorMessage.value = taskStatus.error || '转换失败，请重试'
         isUploading.value = false
-        clearInterval(progressInterval.value)
+        
+        // 失败后停止轮询
+        if (progressInterval.value) {
+          clearInterval(progressInterval.value)
+          progressInterval.value = null
+        }
+      } else {
+        // 如果状态与上次相同，增加计数器
+        if (taskStatus.status === lastStatus && taskStatus.progress === conversionProgress.value) {
+          sameStatusCount++
+          
+          // 如果连续5次状态相同，增加轮询间隔（最大10秒）
+          if (sameStatusCount >= 5 && pollingInterval < 10000) {
+            if (progressInterval.value) {
+              clearInterval(progressInterval.value)
+              progressInterval.value = null
+            }
+            pollingInterval = Math.min(pollingInterval * 2, 10000)
+            progressInterval.value = setInterval(pollStatus, pollingInterval)
+            console.log(`增加轮询间隔至: ${pollingInterval}ms`)
+          }
+        } else {
+          // 状态变化，重置计数器
+          sameStatusCount = 0
+        }
       }
+      
+      // 记录当前状态用于下次比较
+      lastStatus = taskStatus.status
     } catch (error) {
       console.error('获取任务状态失败:', error)
       
@@ -627,15 +677,40 @@ const startPollingTaskStatus = () => {
       if (error.response && error.response.status === 404) {
         console.log('任务不存在，可能已被清理')
         isFileCleanedUp.value = true
-        clearInterval(progressInterval.value)
+        if (progressInterval.value) {
+          clearInterval(progressInterval.value)
+          progressInterval.value = null
+        }
       } else {
-        hasError.value = true
-        errorMessage.value = '获取任务状态失败，请重试'
-        isUploading.value = false
-        clearInterval(progressInterval.value)
+        // 增加轮询间隔（最大10秒）
+        sameStatusCount++
+        if (sameStatusCount >= 3 && pollingInterval < 10000) {
+          if (progressInterval.value) {
+            clearInterval(progressInterval.value)
+            progressInterval.value = null
+          }
+          pollingInterval = Math.min(pollingInterval * 2, 10000)
+          progressInterval.value = setInterval(pollStatus, pollingInterval)
+          console.log(`请求失败，增加轮询间隔至: ${pollingInterval}ms`)
+        }
+        
+        // 只有在连续多次失败时才显示错误
+        if (sameStatusCount >= 3) {
+          hasError.value = true
+          errorMessage.value = '获取任务状态失败，请重试'
+          isUploading.value = false
+          if (progressInterval.value) {
+            clearInterval(progressInterval.value)
+            progressInterval.value = null
+          }
+        }
       }
     }
-  }, 1000) // 每秒轮询一次
+  }
+  
+  // 立即执行一次，然后设置定时器
+  pollStatus()
+  progressInterval.value = setInterval(pollStatus, pollingInterval)
 }
 
 // 下载转换后的文件
