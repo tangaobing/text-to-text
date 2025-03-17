@@ -1,0 +1,84 @@
+/* 全局样式 */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f5f7fa;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.mt-20 {
+  margin-top: 20px;
+}
+
+.mb-20 {
+  margin-bottom: 20px;
+}
+
+/* 拖拽上传区域样式 */
+.drop-zone {
+  border: 2px dashed #409eff;
+  border-radius: 6px;
+  padding: 60px 0;
+  text-align: center;
+  background-color: #f8f9fa;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.drop-zone:hover {
+  border-color: #66b1ff;
+  background-color: #ecf5ff;
+}
+
+.drop-zone-active {
+  border-color: #409eff;
+  background-color: #ecf5ff;
+}
+
+/* 文件预览区域 */
+.file-preview {
+  margin-top: 20px;
+  padding: 15px;
+  border-radius: 4px;
+  background-color: #fff;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* 进度条样式 */
+.progress-container {
+  margin: 20px 0;
+}
+
+/* 状态图标 */
+.status-icon {
+  font-size: 24px;
+  margin-right: 10px;
+}
+
+.status-waiting {
+  color: #909399;
+}
+
+.status-processing {
+  color: #409eff;
+}
+
+.status-success {
+  color: #67c23a;
+}
+
+.status-error {
+  color: #f56c6c;
+} 
