@@ -344,15 +344,15 @@ const acceptFileTypes = computed(() => {
 const uploadTip = computed(() => {
   switch (conversionType.value) {
     case 'pdf-to-word':
-      return '支持上传PDF文件，最大100MB'
+      return '支持上传PDF文件，最大200MB'
     case 'markdown-to-word':
-      return '支持上传Markdown文件，最大100MB'
+      return '支持上传Markdown文件，最大200MB'
     case 'word-to-pdf':
-      return '支持上传Word文档，最大100MB'
+      return '支持上传Word文档，最大200MB'
     case 'pdf-to-markdown':
-      return '支持上传PDF文件，最大100MB'
+      return '支持上传PDF文件，最大200MB'
     default:
-      return '支持上传PDF文件，最大100MB'
+      return '支持上传PDF文件，最大200MB'
   }
 })
 
@@ -493,7 +493,7 @@ const removeFile = (e) => {
 const beforeUpload = (file) => {
   // 检查文件类型和大小
   let isValidType = false
-  const maxSize = 100 * 1024 * 1024 // 100MB
+  const maxSize = 200 * 1024 * 1024 // 200MB
   
   switch (conversionType.value) {
     case 'pdf-to-word':
@@ -521,7 +521,7 @@ const beforeUpload = (file) => {
   }
   
   if (!isLtMaxSize) {
-    ElMessage.error('文件大小不能超过100MB!')
+    ElMessage.error('文件大小不能超过200MB!')
     return false
   }
   
@@ -598,6 +598,8 @@ const startPollingTaskStatus = () => {
   let sameStatusCount = 0
   // 标记是否已经显示过成功消息
   let hasShownSuccessMessage = false
+  // 标记是否已尝试恢复文件
+  let hasTriedRecovery = false
   
   const pollStatus = async () => {
     try {
@@ -670,6 +672,9 @@ const startPollingTaskStatus = () => {
       
       // 记录当前状态用于下次比较
       lastStatus = taskStatus.status
+      
+      // 重置恢复标志
+      hasTriedRecovery = false
     } catch (error) {
       console.error('获取任务状态失败:', error)
       
@@ -682,6 +687,57 @@ const startPollingTaskStatus = () => {
           progressInterval.value = null
         }
       } else {
+        // 检查文件是否已存在但内存状态丢失（服务器重启或连接断开时间过长）
+        if (!hasTriedRecovery) {
+          console.log('尝试恢复文件状态...')
+          hasTriedRecovery = true
+          
+          try {
+            // 调用新的接口检查文件是否存在
+            const fileCheckResponse = await axios.get(`${apiBaseUrl}/check-file/${taskId.value}`)
+            const fileStatus = fileCheckResponse.data
+            
+            console.log('文件检查结果:', fileStatus)
+            
+            if (fileStatus.exists) {
+              // 文件存在，更新状态为完成
+              isCompleted.value = true
+              isUploading.value = false
+              conversionProgress.value = 100
+              
+              // 更新任务信息
+              taskInfo.value = {
+                status: 'completed',
+                progress: 100,
+                output_filename: fileStatus.filename
+              }
+              
+              if (!hasShownSuccessMessage) {
+                ElMessage.success('文件已转换完成，可以下载')
+                hasShownSuccessMessage = true
+              }
+              
+              // 停止轮询
+              if (progressInterval.value) {
+                clearInterval(progressInterval.value)
+                progressInterval.value = null
+              }
+              
+              return
+            } else if (fileStatus.status === 'processing') {
+              // 文件正在处理中，继续轮询
+              conversionProgress.value = 50 // 设置一个中间进度值
+              console.log('文件仍在处理中，继续轮询...')
+              
+              // 重置计数器，继续轮询
+              sameStatusCount = 0
+              return
+            }
+          } catch (recoveryError) {
+            console.error('恢复文件状态失败:', recoveryError)
+          }
+        }
+        
         // 增加轮询间隔（最大10秒）
         sameStatusCount++
         if (sameStatusCount >= 3 && pollingInterval < 10000) {
@@ -694,11 +750,12 @@ const startPollingTaskStatus = () => {
           console.log(`请求失败，增加轮询间隔至: ${pollingInterval}ms`)
         }
         
-        // 只有在连续多次失败时才显示错误
-        if (sameStatusCount >= 3) {
+        // 只有在连续多次失败且没有恢复成功时才显示错误
+        if (sameStatusCount >= 5 && !isCompleted.value) {
           hasError.value = true
-          errorMessage.value = '获取任务状态失败，请重试'
+          errorMessage.value = '获取任务状态失败，请点击刷新按钮重试'
           isUploading.value = false
+          
           if (progressInterval.value) {
             clearInterval(progressInterval.value)
             progressInterval.value = null
@@ -773,9 +830,56 @@ const downloadFile = async () => {
   } catch (error) {
     console.error('下载失败:', error)
     
-    // 如果是404错误，说明任务可能已被清理
+    // 如果是404错误，说明任务可能已被清理或内存状态丢失
     if (error.response && error.response.status === 404) {
-      ElMessage.warning('文件已被清理，请重新上传')
+      // 尝试检查文件是否存在
+      try {
+        console.log('检查文件是否存在...')
+        const fileCheckResponse = await axios.get(`${apiBaseUrl}/check-file/${taskId.value}`)
+        const fileStatus = fileCheckResponse.data
+        
+        if (fileStatus.exists) {
+          // 文件存在，尝试再次下载
+          ElMessage.warning('正在尝试恢复下载...')
+          
+          // 更新任务信息
+          taskInfo.value = {
+            status: 'completed',
+            progress: 100,
+            output_filename: fileStatus.filename
+          }
+          
+          // 再次触发下载
+          const downloadUrl = `${apiBaseUrl}/download/${taskId.value}`
+          const response = await axios.get(downloadUrl, {
+            responseType: 'blob'
+          })
+          
+          // 确定文件扩展名
+          let fileExtension = '.docx'
+          switch (conversionType.value) {
+            case 'pdf-to-word': fileExtension = '.docx'; break
+            case 'markdown-to-word': fileExtension = '.docx'; break
+            case 'word-to-pdf': fileExtension = '.pdf'; break
+            case 'pdf-to-markdown': fileExtension = '.md'; break
+          }
+          
+          // 使用file-saver保存文件
+          const originalExt = selectedFile.value.name.substring(selectedFile.value.name.lastIndexOf('.'))
+          const filename = selectedFile.value.name.replace(originalExt, fileExtension)
+          saveAs(new Blob([response.data]), filename)
+          
+          // 标记为已下载
+          isDownloaded.value = true
+          
+          ElMessage.success('文件恢复下载成功')
+          return
+        }
+      } catch (recoveryError) {
+        console.error('恢复下载失败:', recoveryError)
+      }
+      
+      ElMessage.warning('文件已被清理或无法访问，请重新上传')
       isFileCleanedUp.value = true
       taskId.value = null
       taskInfo.value = null

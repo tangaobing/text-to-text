@@ -46,7 +46,7 @@ logger.info(f"日志目录路径: {LOGS_DIR.absolute()}")
 conversion_tasks: Dict[str, Dict] = {}
 
 # 配置
-MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+MAX_FILE_SIZE = 200 * 1024 * 1024  # 200MB
 
 # 定期清理临时文件
 @app.on_event("startup")
@@ -256,6 +256,57 @@ async def get_style_config():
         "math_support": True
     }
     return default_config
+
+@app.get("/check-file/{task_id}")
+async def check_file_exists(task_id: str):
+    """
+    检查转换后的文件是否存在，不依赖内存中的任务状态
+    当连接断开后，前端可以调用此接口检查文件是否已转换完成
+    
+    Args:
+        task_id: 任务ID
+        
+    Returns:
+        文件状态信息
+    """
+    session_dir = TEMP_DIR / task_id
+    
+    # 检查会话目录是否存在
+    if not session_dir.exists():
+        logger.warning(f"会话目录不存在: {session_dir}")
+        return {"exists": False, "message": "任务不存在或已被清理"}
+    
+    # 检查是否有输入文件
+    input_file = session_dir / "input.pdf"
+    if not input_file.exists():
+        return {"exists": False, "message": "输入文件不存在"}
+    
+    # 查找可能的输出文件（.docx文件）
+    output_files = list(session_dir.glob("*.docx"))
+    if not output_files:
+        return {"exists": False, "message": "转换尚未完成", "status": "processing"}
+    
+    # 找到输出文件
+    output_file = output_files[0]
+    output_filename = output_file.name
+    
+    # 如果在内存中找不到任务状态，但文件已存在，创建一个新的任务状态
+    if task_id not in conversion_tasks:
+        conversion_tasks[task_id] = {
+            "status": "completed",
+            "progress": 100,
+            "input_filename": input_file.name,
+            "output_filename": output_filename,
+            "error": None
+        }
+        logger.info(f"恢复任务状态: {task_id}, 文件已存在: {output_filename}")
+    
+    return {
+        "exists": True,
+        "filename": output_filename,
+        "status": "completed",
+        "message": "文件已转换完成"
+    }
 
 @app.get("/")
 async def root():
