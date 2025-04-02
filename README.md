@@ -54,9 +54,17 @@
 ### 环境要求
 - Python 3.10+
 - Node.js 16+
+- Conda (推荐)
 
 ### 后端安装
 ```bash
+# 使用pip安装
+cd backend
+pip install -r requirements.txt
+
+# 或使用conda创建新环境（推荐）
+conda create -n text2text python=3.12
+conda activate text2text
 cd backend
 pip install -r requirements.txt
 ```
@@ -69,7 +77,8 @@ npm install
 
 ### 启动服务
 ```bash
-# 启动后端
+# 启动后端（使用conda环境）
+conda activate pdf2word  # 如果使用conda环境
 cd backend
 python -m uvicorn main:app --reload
 
